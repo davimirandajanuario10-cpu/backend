@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Usuários</title>
+	<style>
+		:root {
+			color-scheme: light;
+			--background: #f4f7fb;
+			--surface: #ffffff;
+			--text: #172033;
+			--muted: #697386;
+			--line: #e3e8f0;
+			--accent: #1769e0;
+			--accent-dark: #0f4fae;
+			--danger: #b42318;
+		}
+
+		* { box-sizing: border-box; }
+
+		body {
+			margin: 0;
+			min-height: 100vh;
+			background: linear-gradient(135deg, #edf4ff, var(--background) 45%, #eefaf7);
+			color: var(--text);
+			font-family: Georgia, 'Times New Roman', serif;
+		}
+
+		main {
+			width: min(1100px, calc(100% - 32px));
+			margin: 0 auto;
+			padding: 56px 0;
+		}
+
+		header {
+			display: flex;
+			align-items: end;
+			justify-content: space-between;
+			gap: 24px;
+			margin-bottom: 28px;
+		}
+
+		h1 { margin: 0 0 8px; font-size: clamp(2rem, 5vw, 3.25rem); }
+		p { margin: 0; color: var(--muted); font-family: Arial, sans-serif; }
+
+		button {
+			border: 0;
+			border-radius: 7px;
+			padding: 11px 16px;
+			background: var(--accent);
+			color: white;
+			cursor: pointer;
+			font: 600 14px Arial, sans-serif;
+		}
+
+		button:hover { background: var(--accent-dark); }
+		button:disabled { cursor: wait; opacity: .65; }
+
+		.panel {
+			overflow: hidden;
+			border: 1px solid var(--line);
+			border-radius: 8px;
+			background: var(--surface);
+			box-shadow: 0 16px 40px rgb(30 55 90 / 10%);
+		}
+
+		.status {
+			min-height: 48px;
+			padding: 15px 20px;
+			border-bottom: 1px solid var(--line);
+			color: var(--muted);
+			font: 14px Arial, sans-serif;
+		}
+
+		.status.error { color: var(--danger); }
+
+		.table-wrap { overflow-x: auto; }
+		table { width: 100%; border-collapse: collapse; font-family: Arial, sans-serif; }
+		th, td { padding: 16px 20px; text-align: left; white-space: nowrap; }
+		th { background: #f8fafc; color: var(--muted); font-size: 12px; letter-spacing: .04em; text-transform: uppercase; }
+		td { border-top: 1px solid var(--line); font-size: 14px; }
+		tbody tr:hover { background: #f8fbff; }
+		.empty { padding: 32px 20px; text-align: center; color: var(--muted); font-family: Arial, sans-serif; }
+
+		@media (max-width: 620px) {
+			main { width: min(100% - 20px, 1100px); padding: 32px 0; }
+			header { align-items: start; flex-direction: column; }
+			button { width: 100%; }
+			th, td { padding: 13px 14px; }
+		}
+	</style>
+</head>
+<body>
+	<main>
+		<header>
+			<div>
+				<h1>Usuários</h1>
+				<p>Dados carregados diretamente da API.</p>
+			</div>
+			<button id="refresh" type="button">Atualizar</button>
+		</header>
+
+		<section class="panel" aria-live="polite">
+			<div id="status" class="status">Carregando usuários...</div>
+			<div class="table-wrap">
+				<table>
+					<thead>
+						<tr>
+							<th>ID</th>
+							<th>Nome</th>
+							<th>E-mail</th>
+							<th>Contato</th>
+							<th>Gênero</th>
+							<th>Ativo</th>
+						</tr>
+					</thead>
+					<tbody id="users"></tbody>
+				</table>
+			</div>
+		</section>
+	</main>
+
+	<script>
+		const statusElement = document.querySelector('#status');
+		const usersElement = document.querySelector('#users');
+		const refreshButton = document.querySelector('#refresh');
+
+		function setStatus(message, isError = false) {
+			statusElement.textContent = message;
+			statusElement.classList.toggle('error', isError);
+		}
+
+		function renderUsers(users) {
+			usersElement.replaceChildren();
+
+			if (users.length === 0) {
+				const row = document.createElement('tr');
+				row.innerHTML = '<td class="empty" colspan="6">Nenhum usuário encontrado.</td>';
+				usersElement.appendChild(row);
+				return;
+			}
+
+			users.forEach((user) => {
+				const row = document.createElement('tr');
+				row.innerHTML = `
+					<td>${user.id_usu ?? '-'}</td>
+					<td>${user.nome ?? '-'}</td>
+					<td>${user.email ?? '-'}</td>
+					<td>${user.contato ?? '-'}</td>
+					<td>${user.genero ?? '-'}</td>
+					<td>${user.ativo ? 'Sim' : 'Não'}</td>
+				`;
+				usersElement.appendChild(row);
+			});
+		}
+
+		async function loadUsers() {
+			refreshButton.disabled = true;
+			setStatus('Carregando usuários...');
+
+			try {
+				const apiUrl = window.location.protocol === 'file:'
+					? 'http://localhost:5000/usuario'
+					: '/usuario';
+				const response = await fetch(apiUrl);
+				const data = await response.json();
+
+				if (!response.ok) {
+					throw new Error(data.erro?.mensagem || 'Não foi possível carregar os usuários.');
+				}
+
+				const users = Array.isArray(data.usuario) ? data.usuario : [];
+				renderUsers(users);
+				setStatus(`${users.length} usuário(s) encontrado(s).`);
+			} catch (error) {
+				usersElement.replaceChildren();
+				const message = error instanceof TypeError
+					? 'Não foi possível conectar à API. Execute "npm start" e abra http://localhost:5000.'
+					: error.message;
+				setStatus(message, true);
+			} finally {
+				refreshButton.disabled = false;
+			}
+		}
+
+		refreshButton.addEventListener('click', loadUsers);
+		loadUsers();
+	</script>
+</body>
+</html>
